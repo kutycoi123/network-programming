@@ -28,6 +28,9 @@ net::Server::setup(void* data, int port)
     _data = data;
     
     // TODO: Complete
+    _servAddr.sin_port = htons(port);
+    _servAddr.sin_family = AF_INET;
+    _servAddr.sin_addr.s_addr = INADDR_ANY;
 }
 
 // Configure the socket to use the SO_REUSEADDR option.
@@ -41,13 +44,17 @@ net::Server::initializeSocket()
 	// TODO: Complete
 	int optValue = 1;
 	int retTest = -1;
-
+  if ((_listenFd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+    perror("Socket creation failed");
+    shutdown();
+  }
+  retTest = setsockopt(_listenFd, SOL_SOCKET, SO_REUSEADDR, &optValue, sizeof(optValue));
 	printf("[SERVER] setsockopt() ret %d\n", retTest);
 
 	if (retTest < 0) {
-        perror("[SERVER] [ERROR] setsockopt() failed");
-		shutdown();
-    }
+      perror("[SERVER] [ERROR] setsockopt() failed");
+		  shutdown();
+  }
 }
 
 // Bind the socket to address/port
@@ -55,6 +62,10 @@ void
 net::Server::bindSocket()
 {
 	// TODO: Complete
+  if (bind(_listenFd, (struct sockaddr *)&_servAddr, sizeof(_servAddr)) < 0) {
+    perror("Bind failed");
+    shutdown();
+  }
 }
 
 // Listen to incoming connections
@@ -62,6 +73,10 @@ void
 net::Server::startListen()
 {
 	// TODO: Complete
+  if (listen(_listenFd, 10) < 0) {
+    perror("Listen failed");
+    shutdown();
+  }
 }
 
 // Close the listening socket
@@ -69,6 +84,7 @@ void
 net::Server::shutdown()
 {
 	// TODO: Complete
+  close(_listenFd);
 }
 
 // Accept incoming connections.
@@ -77,8 +93,14 @@ void
 net::Server::handleNewConnection()
 {
   	std::cout << "[SERVER] [CONNECTION] Waiting for a new connection\n";
-
+    
     // TODO: Complete
+    if ((_connFd = accept(_listenFd, (struct sockaddr *)&_servAddr, (socklen_t*)&_servAddr)) < 0) {
+      perror("Accept failed");
+      shutdown();
+      exit(EXIT_FAILURE);
+    }
+    newConnectionCallback(this, _connFd, _data);
 }
 
 // Handle incoming connections.
@@ -86,6 +108,9 @@ void
 net::Server::loop()
 {
     // TODO: Complete
+    while (1) {
+      handleNewConnection();
+    }
 }
 
 void 
