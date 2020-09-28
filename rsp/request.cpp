@@ -23,12 +23,17 @@ model::Request::Request(const char* msg)
 {
     // TODO: Set the correct opt first
     char opt = 0;
+    opt = msg[0];
     setupFlags(opt);
     
     // TODO: Complete
-    std::string uuid;
-    int item;
-
+    std::string msg_str(msg);
+    std::string uuid = "";
+    int item = 0;
+    if (_has_uuid)
+      uuid = msg_str.substr(1,32);
+    if (_has_item)
+      item = utils::bytesToInt(msg_str.substr(33, 4).c_str());
     setup(opt, uuid, item);
 }
 
@@ -100,7 +105,10 @@ int
 model::Request::getBytesCount() 
 {
     // TODO: Complete
-    return 0;
+    int sz = 1;
+    if (_has_uuid) sz += 32;
+    if (_has_item) sz += 4;
+    return sz;
 }
 
 // Encode the Request object to byte array (based on its content)
@@ -111,6 +119,18 @@ model::Request::toBytes()
     char* msg = new char[bytesCount];
     
     // TODO: Complete
-
+    msg[0] = _opt;
+    if (_has_uuid) {
+      for (int i = 1; i <= 32; ++i) {
+        msg[i] = _uuid[i-1];
+      }
+    }
+    if (_has_item) {
+      char* itemInBytes = utils::intToBytes(_item);
+      for (int i = 0; i < 4; ++i) {
+        msg[i+33] = itemInBytes[i];
+      }
+      delete[] itemInBytes;
+    }
     return msg;    
 }
