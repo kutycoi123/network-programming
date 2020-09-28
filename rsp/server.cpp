@@ -45,14 +45,14 @@ net::Server::initializeSocket()
 	int optValue = 1;
 	int retTest = -1;
   if ((_listenFd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-    perror("Socket creation failed");
+    perror("Socket creation failed\n");
     shutdown();
   }
   retTest = setsockopt(_listenFd, SOL_SOCKET, SO_REUSEADDR, &optValue, sizeof(optValue));
 	printf("[SERVER] setsockopt() ret %d\n", retTest);
 
 	if (retTest < 0) {
-      perror("[SERVER] [ERROR] setsockopt() failed");
+      perror("[SERVER] [ERROR] setsockopt() failed\n");
 		  shutdown();
   }
 }
@@ -63,7 +63,7 @@ net::Server::bindSocket()
 {
 	// TODO: Complete
   if (bind(_listenFd, (struct sockaddr *)&_servAddr, sizeof(_servAddr)) < 0) {
-    perror("Bind failed");
+    perror("Bind failed\n");
     shutdown();
   }
 }
@@ -74,7 +74,7 @@ net::Server::startListen()
 {
 	// TODO: Complete
   if (listen(_listenFd, 10) < 0) {
-    perror("Listen failed");
+    perror("Listen failed\n");
     shutdown();
   }
 }
@@ -93,10 +93,10 @@ void
 net::Server::handleNewConnection()
 {
   	std::cout << "[SERVER] [CONNECTION] Waiting for a new connection\n";
-    
+    int addrlen = sizeof(_servAddr);  
     // TODO: Complete
-    if ((_connFd = accept(_listenFd, (struct sockaddr *)&_servAddr, (socklen_t*)&_servAddr)) < 0) {
-      perror("Accept failed");
+    if ((_connFd = accept(_listenFd, (struct sockaddr *)&_servAddr, (socklen_t*)&addrlen)) < 0) {
+      perror("Accept failed\n");
       shutdown();
       exit(EXIT_FAILURE);
     }

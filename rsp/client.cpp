@@ -27,12 +27,23 @@ net::Client::setup(const char* server_addr, int port, void* data)
 {
     _data = data;
     // TODO: Complete
+   _servAddr.sin_family = AF_INET;
+   _servAddr.sin_port = htons(port);
+   if (inet_pton(AF_INET, server_addr, &_servAddr.sin_addr) <= 0) {
+      perror("Invalid addres\n");
+      shutdown();
+   }
+
 }
 
 void 
 net::Client::initializeSocket()
 {
 	std::cout << "[CLIENT] initializing socket\n";
+  if ((_connFd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+      perror("Socket creation failed \n");
+      shutdown();
+  }
 }
 
 // Shutdown the socket
@@ -40,6 +51,7 @@ void
 net::Client::shutdown()
 {
 	// TODO: Complete
+  close(_connFd);
 }
 
 // Connect to the server. You need to call "newConnectionCallback" once the connection is established
@@ -47,6 +59,9 @@ void
 net::Client::doConnect()
 {
     // TODO: Complete
+    if (connect(_connFd, (struct sockaddr *)&_servAddr, sizeof(_servAddr)) < 0) {
+        perror("Connection failed\n");
+    }
 }
 
 void 
