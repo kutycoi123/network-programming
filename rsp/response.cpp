@@ -63,19 +63,21 @@ model::Response::toBytes()
     
     // TODO: Complete
     msg[0] = _ret;
-    char* _lenInBytes = utils::intToBytes(_len);
+    char* _lenInBytes = utils::intToBytes(getLen());
     int i = 1;
     strcpy(msg+i, _lenInBytes);
     i += strlen(_lenInBytes);
     for (const std::string& id : _uuids) {
       const char* uuidCString = id.c_str();
       strcpy(msg+i, uuidCString);
-      i += strlen(uuidCString);
+      //i += strlen(uuidCString);
+      i += 32;
     }
     for (const int& item : _items) {
       char* itemInBytes = utils::intToBytes(item); 
       strcpy(msg+i, itemInBytes);
-      i += strlen(itemInBytes);
+      //i += strlen(itemInBytes);
+      i += 4;
       delete[] itemInBytes;
     }
     char* _setSizeInBytes = utils::intToBytes(_set_size);
@@ -111,7 +113,13 @@ model::Response::getLen()
     //int wordCount = 0;
 
     //return wordCount;
-    return _len;
+    //return _len;
+    int bytesCount = 0;
+    bytesCount += _uuids.size() * 32;
+    bytesCount += _items.size() * 4;
+    if (_set_size != 0) 
+       bytesCount += 4;
+    return bytesCount / 4;
 }
 
 void
