@@ -1,7 +1,7 @@
 #include "response.hpp"
 
 model::Response::Response(char opt, char ret)
-:_opt(opt), _ret(ret)
+:_opt(opt), _ret(ret), _len(0)
 {  
 
 }
@@ -27,7 +27,7 @@ model::Response::Response(char opt, const char* msg)
          _items.push_back(utils::bytesToInt(msg_str.substr(i, 4).c_str()));
       }
     }else if (_opt == OPT_GET_SIZE) {
-      _set_size = utils::bytesToInt(msg_str.substr(5, 4).c_str());
+      _set_size = utils::bytesToInt(msg_str.substr(5).c_str());
     }
 }
 
@@ -46,7 +46,12 @@ int
 model::Response::getBytesCount() 
 {
     // TODO: Complete
-    return 0;
+    int count = 5;
+    count += _uuids.size() * 32;
+    count += _items.size() * 4; 
+    if (_set_size != 0) 
+      count += 4;
+    return count;
 }
 
 // Encode the Response object to byte array (based on its content)
@@ -57,7 +62,27 @@ model::Response::toBytes()
     char* msg = new char[bytesCount];
     
     // TODO: Complete
-    
+    msg[0] = _ret;
+    char* _lenInBytes = utils::intToBytes(_len);
+    int i = 1;
+    strcpy(msg+i, _lenInBytes);
+    i += strlen(_lenInBytes);
+    for (const std::string& id : _uuids) {
+      const char* uuidCString = id.c_str();
+      strcpy(msg+i, uuidCString);
+      i += strlen(uuidCString);
+    }
+    for (const int& item : _items) {
+      char* itemInBytes = utils::intToBytes(item); 
+      strcpy(msg+i, itemInBytes);
+      i += strlen(itemInBytes);
+      delete[] itemInBytes;
+    }
+    char* _setSizeInBytes = utils::intToBytes(_set_size);
+    strcpy(msg+i, _setSizeInBytes);
+
+    delete[] _setSizeInBytes;
+    delete[] _lenInBytes;
     return msg;    
 }
 
@@ -82,10 +107,11 @@ model::Response::getLen()
     }
 
     // TODO: Complete
-    int bytesCount = 0;
-    int wordCount = 0;
+    //int bytesCount = 0;
+    //int wordCount = 0;
 
-    return wordCount;
+    //return wordCount;
+    return _len;
 }
 
 void
