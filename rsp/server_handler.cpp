@@ -19,11 +19,14 @@ net::OnNewClientConnected(net::Server* server, uint16_t fd, void* data)
 
     // TODO: Send response here
     char* response = res->toBytes();
-    uint16_t sentBytes = SendBytes(fd, response, strlen(response)); 
+    uint16_t sentBytes = SendBytes(fd, response, res->getBytesCount()); 
     
     cout << "[SERVER] " << sentBytes << " bytes were sent" << endl;
 
     delete[] response; 
     delete[] requestBytes;
-    delete req;
+    if (req)
+      delete req;
+    if (res)
+      delete res;
 }

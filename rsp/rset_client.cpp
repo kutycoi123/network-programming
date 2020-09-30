@@ -124,4 +124,6 @@ int main(int argc, char** argv) {
     net::Client* c = new net::Client(server.c_str(), port, (void*)req);
     c->onConnect(net::OnClientConnected);
     c->init();
+    delete c;
+    delete req;
 }

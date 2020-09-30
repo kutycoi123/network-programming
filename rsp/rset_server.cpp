@@ -49,5 +49,5 @@ int main(int argc, char** argv) {
     s->init(); 
     s->loop(); // Server listening
 
-    delete[] s;
+    delete s;
 }
