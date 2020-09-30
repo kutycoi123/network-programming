@@ -5,6 +5,7 @@
 uint16_t 
 net::SendBytes(uint16_t fd, char *msg, int count) {
     // TODO: Complete
+    return send(fd, msg, count, 0);
 }
 
 // Write "count" bytes of "msg" to "fd"
@@ -12,6 +13,7 @@ net::SendBytes(uint16_t fd, char *msg, int count) {
 uint16_t 
 net::SendBytes(uint16_t fd, const char *msg, int count) {
     // TODO: Complete
+    return send(fd, msg, count, 0);
 }
 
 // Write "count" bytes from "fd" to "buffer"
@@ -21,5 +23,6 @@ net::ReadBytes(uint16_t fd, char* buffer, unsigned int count)
 {
     // TODO: Complete
     int bytesRead = 0;
+    bytesRead = read(fd, buffer, count);
     return bytesRead;
 }
