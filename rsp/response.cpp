@@ -14,7 +14,7 @@ model::Response::Response(char opt, const char* msg)
     //std::string msg_str(msg);
     _ret = msg[0];
     char len[4];
-    char uuid[32];
+    char uuid[33];
     char item[4];
     char size[4];
     memcpy(len, msg + 1, 4);
@@ -24,11 +24,13 @@ model::Response::Response(char opt, const char* msg)
         || _opt == OPT_CLR_SET || _opt == OPT_REM_SET) 
       return;
     //int len = msg_str.length();
-    int totalBytes = _len * 4;
+    int totalBytes = _len * 4 + 5;
     if (_opt == OPT_CRT_SET || _opt == OPT_GET_SETS) {
       for (int i = 5; i < totalBytes; i+=32) {
          //_uuids.push_back(msg_str.substr(i, 32)); 
          memcpy(uuid, msg+i, 32);
+         uuid[32] = '\0';
+         std::cout << "[CLIENT debug] uuid = " << uuid << "\n"; 
          _uuids.push_back(std::string(uuid));
       }
     }else if (_opt == OPT_GET_ITEMS){
