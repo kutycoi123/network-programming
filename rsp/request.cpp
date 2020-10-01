@@ -36,7 +36,6 @@ model::Request::Request(const char* msg)
       uuid_raw[32] = '\0';
       uuid = std::string(uuid_raw);
       if (_has_item) {
-        //item = utils::bytesToInt(msg_str.substr(33, 4).c_str());
         memcpy(item_raw, msg+33, 4);
         item = utils::bytesToInt(item_raw);
       }

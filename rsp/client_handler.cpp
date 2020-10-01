@@ -39,7 +39,6 @@ net::readResponseBytes(uint16_t fd)
     // TODO: Complete
     char* responseBuffer = new char[MAX_BUFFER_SIZE];
     int readBytes = ReadBytes(fd, responseBuffer, MAX_BUFFER_SIZE);
-    std::cout << "[CLIENT debug] " << readBytes << " bytes were received\n";
     if (readBytes != -1)
       return responseBuffer;
     return nullptr;
