@@ -27,13 +27,19 @@ model::Request::Request(const char* msg)
     setupFlags(opt);
     
     // TODO: Complete
-    std::string msg_str(msg);
-    std::string uuid = "";
+    char uuid_raw[32];
+    char item_raw[4];
+    std::string uuid;
     int item = 0;
-    if (_has_uuid)
-      uuid = msg_str.substr(1,32);
-    if (_has_item)
-      item = utils::bytesToInt(msg_str.substr(33, 4).c_str());
+    if (_has_uuid) {
+      memcpy(uuid_raw, msg+1, 32);
+      uuid = std::string(uuid_raw);
+      if (_has_item) {
+        //item = utils::bytesToInt(msg_str.substr(33, 4).c_str());
+        memcpy(item_raw, msg+33, 4);
+        item = utils::bytesToInt(item_raw);
+      }
+    }
     setup(opt, uuid, item);
 }
 

@@ -62,6 +62,7 @@ net::Client::doConnect()
     if (connect(_connFd, (struct sockaddr *)&_servAddr, sizeof(_servAddr)) < 0) {
         perror("Connection failed\n");
     }
+    newConnectionCallback(this, _connFd, _data);
 }
 
 void 
