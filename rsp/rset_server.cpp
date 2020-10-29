@@ -44,8 +44,10 @@ int main(int argc, char** argv) {
     }
 
     model::SetManager sm;
-    net::Server* s = new net::Server((void*)&sm, port);
-    s->onConnect(net::OnNewClientConnected);
-    s->init();
-    s->loop();
+    net::Server* s = new net::Server((void*)&sm, port); // Init server with given port
+    s->onConnect(net::OnNewClientConnected); // Bind handler
+    s->init(); 
+    s->loop(); // Server listening
+
+    delete s;
 }

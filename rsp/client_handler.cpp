@@ -37,6 +37,10 @@ char*
 net::readResponseBytes(uint16_t fd) 
 {
     // TODO: Complete
+    char* responseBuffer = new char[MAX_BUFFER_SIZE];
+    int readBytes = ReadBytes(fd, responseBuffer, MAX_BUFFER_SIZE);
+    if (readBytes != -1)
+      return responseBuffer;
     return nullptr;
 }
 
@@ -48,12 +52,20 @@ net::OnClientConnected(net::Client* client, uint16_t fd, void* data)
     cout << "[CLIENT] Connected" << endl;
     
     model::Request* req = (model::Request*) data;
+    char* reqInBytes = req->toBytes();
     // TODO: Send request here
-    uint16_t sentBytes = 0;
-    
+    uint16_t sentBytes = SendBytes(fd, reqInBytes, req->getBytesCount());
+     
     cout << "[CLIENT] " << sentBytes << " bytes were sent" << endl;
     
     char* responseBytes = readResponseBytes(fd);
     model::Response* res = new model::Response(req->getOpt(), responseBytes);
     printResponse(res);
+
+    if (responseBytes)
+      delete[] responseBytes;
+    if (reqInBytes)
+      delete[] reqInBytes;
+    if (res)
+      delete res;
 }

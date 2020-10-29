@@ -11,6 +11,32 @@ model::Response::Response(char opt, const char* msg)
 :_opt(opt)
 {
     // TODO: Complete
+    _ret = msg[0];
+    char len[4];
+    char uuid[33];
+    char item[4];
+    char size[4];
+    memcpy(len, msg + 1, 4);
+    _len = utils::bytesToInt(len);
+    if (_ret != RET_SUCCESS || _opt == OPT_ADD_ITEM || _opt == OPT_ADD_ITEM
+        || _opt == OPT_CLR_SET || _opt == OPT_REM_SET) 
+      return;
+    int totalBytes = _len * 4 + 5;
+    if (_opt == OPT_CRT_SET || _opt == OPT_GET_SETS) {
+      for (int i = 5; i < totalBytes; i+=32) {
+         memcpy(uuid, msg+i, 32);
+         uuid[32] = '\0';
+         _uuids.push_back(std::string(uuid));
+      }
+    }else if (_opt == OPT_GET_ITEMS){
+      for (int i = 5; i < totalBytes; i+=4) {
+         memcpy(item, msg+i, 4);
+         _items.push_back(utils::bytesToInt(item));
+      }
+    }else if (_opt == OPT_GET_SIZE) {
+      memcpy(size, msg + 5, 4);
+      _set_size = utils::bytesToInt(size);
+    }
 }
 
 model::Response::Response(const Response& orig)
@@ -28,7 +54,12 @@ int
 model::Response::getBytesCount() 
 {
     // TODO: Complete
-    return 0;
+    int count = 5;
+    count += _uuids.size() * 32;
+    count += _items.size() * 4; 
+    if (_opt == OPT_GET_SIZE ) 
+      count += 4;
+    return count;
 }
 
 // Encode the Response object to byte array (based on its content)
@@ -39,7 +70,27 @@ model::Response::toBytes()
     char* msg = new char[bytesCount];
     
     // TODO: Complete
-    
+    msg[0] = _ret;
+    char* _lenInBytes = utils::intToBytes(getLen());
+    memcpy(msg+1, _lenInBytes, 4);
+    int i = 5;
+    for (const std::string& id : _uuids) {
+      const char* uuidCString = id.c_str();
+      memcpy(msg+i, uuidCString, 32);
+      i += 32;
+    }
+    for (const int& item : _items) {
+      char* itemInBytes = utils::intToBytes(item); 
+      memcpy(msg+i, itemInBytes, 4);
+      i += 4;
+      delete[] itemInBytes;
+    }
+    if (_opt == OPT_GET_SIZE) {
+      char* _setSizeInBytes = utils::intToBytes(_set_size);
+      memcpy(msg+i, _setSizeInBytes, 4);
+      delete[] _setSizeInBytes;
+    }
+    delete[] _lenInBytes;
     return msg;    
 }
 
@@ -65,9 +116,11 @@ model::Response::getLen()
 
     // TODO: Complete
     int bytesCount = 0;
-    int wordCount = 0;
-
-    return wordCount;
+    bytesCount += _uuids.size() * 32;
+    bytesCount += _items.size() * 4;
+    if (_opt == OPT_GET_SIZE) 
+       bytesCount += 4;
+    return bytesCount / 4;
 }
 
 void
