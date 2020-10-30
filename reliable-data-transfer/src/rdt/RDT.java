@@ -82,7 +82,7 @@ public class RDT {
 		// divide data into segments
 		// put each segment into sndBuf
 
-		int curr = 0, seqNum = 1;
+		int curr = 0, seqNum = 0;
 		while (curr < data.length) {
 			int next = Math.min(curr + MSS, data.length);
 			RDTSegment segment = new RDTSegment();
@@ -113,7 +113,7 @@ public class RDT {
 	public int receive (byte[] buf, int size)
 	{
 		//*****  complete
-		RDTSegment seg = rcvBuf.getNext();
+		RDTSegment seg = rcvBuf.pop();
 		seg.makePayload(buf);
 		return seg.length + RDTSegment.HDR_SIZE;   // fix
 	}
@@ -253,6 +253,38 @@ class ReceiverThread extends Thread {
 		//                if seg contains data, put the data in rcvBuf and do any necessary 
 		//                             stuff (e.g, send ACK)
 		//
+		while(true) {
+			byte[] buf = new byte[RDT.MSS];
+			DatagramPacket pkt = new DatagramPacket(buf, buf.length);
+			try {
+				socket.receive(pkt);
+				RDTSegment seg = new RDTSegment();
+				makeSegment(seg, buf);
+				if (!seg.isValid()) continue;
+				if (seg.containsAck()) {
+					for (int i = 0; i < sndBuf.buf.length; ++i) {
+						if (sndBuf.buf[i].seqNum == seg.ackNum) {
+							sndBuf.buf[i].ackReceived = true;
+							// Maybe ask sndBuf to slide its buf (slide window)
+							break;
+						}
+					}
+				}
+				if (seg.containsData()) {
+					// Put seg in rcvBuf
+					rcvBuf.putSeqNum(seg);
+					RDTSegment ackSeg = new RDTSegment();
+					ackSeg.ackNum = seg.seqNum;
+					ackSeg.flags = RDTSegment.FLAGS_ACK;
+					Utility.udp_send(ackSeg, socket, dst_ip, dst_port);
+					// Send ack
+				}
+
+			} catch (IOException e) {
+				System.out.println("ReceiverThread run(): " + e);
+			}
+
+		}
 	}
 	
 	

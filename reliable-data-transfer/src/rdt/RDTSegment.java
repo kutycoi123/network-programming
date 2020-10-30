@@ -47,7 +47,7 @@ public class RDTSegment {
 	
 	public boolean containsAck() {
 		// complete
-		return flags != 0;
+		return flags == FLAGS_ACK;
 	}
 	
 	public boolean containsData() {
