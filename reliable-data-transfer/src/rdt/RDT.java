@@ -1,10 +1,7 @@
 
-/**
- * @author mohamed
- *
- */
 package rdt;
 
+import javax.swing.text.Segment;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -83,13 +80,29 @@ public class RDT {
 		//****** complete
 		
 		// divide data into segments
-		
 		// put each segment into sndBuf
-		
-		// send using udp_send()
-		
-		// schedule timeout for segment(s) 
-			
+
+		int curr = 0, seqNum = 1;
+		while (curr < data.length) {
+			int next = Math.min(curr + MSS, data.length);
+			RDTSegment segment = new RDTSegment();
+			for (int pos = curr; pos < next; ++pos) {
+				segment.data[pos-curr] = data[pos];
+			}
+			segment.seqNum = seqNum++;
+			sndBuf.putNext(segment);
+			// send using udp_send()
+			Utility.udp_send(segment,socket,dst_ip,dst_port);
+
+			// schedule timeout for segment(s)
+			TimeoutHandler handler = new TimeoutHandler(sndBuf,segment,socket,dst_ip,dst_port);
+			timer.schedule(handler, 0, RTO);
+
+			curr = next;
+		}
+
+
+
 		return size;
 	}
 	
@@ -100,8 +113,9 @@ public class RDT {
 	public int receive (byte[] buf, int size)
 	{
 		//*****  complete
-		
-		return 0;   // fix
+		RDTSegment seg = rcvBuf.getNext();
+		seg.makePayload(buf);
+		return seg.length + RDTSegment.HDR_SIZE;   // fix
 	}
 	
 	// called by app
@@ -118,6 +132,7 @@ class RDTBuffer {
 	public int size;	
 	public int base;
 	public int next;
+	public int expectedSeqNum;
 	public Semaphore semMutex; // for mutual execlusion
 	public Semaphore semFull; // #of full slots
 	public Semaphore semEmpty; // #of Empty slots
@@ -128,6 +143,7 @@ class RDTBuffer {
 			buf[i] = null;
 		size = bufSize;
 		base = next = 0;
+		expectedSeqNum = 0;
 		semMutex = new Semaphore(1, true);
 		semFull =  new Semaphore(0, true);
 		semEmpty = new Semaphore(bufSize, true);
@@ -139,9 +155,9 @@ class RDTBuffer {
 	public void putNext(RDTSegment seg) {		
 		try {
 			semEmpty.acquire(); // wait for an empty slot 
-			semMutex.acquire(); // wait for mutex 
+			semMutex.acquire(); // wait for mutex
 				buf[next%size] = seg;
-				next++;  
+				next++;
 			semMutex.release();
 			semFull.release(); // increase #of full slots
 		} catch(InterruptedException e) {
@@ -151,16 +167,54 @@ class RDTBuffer {
 	
 	// return the next in-order segment
 	public RDTSegment getNext() {
-		
+		RDTSegment segment = null;
 		// **** Complete
+		try {
+			semFull.acquire(); // only get when there is something in buffer
+			semMutex.acquire();
+			if (buf[base%size] != null && buf[base%size].seqNum == base) {
+				segment = buf[base%size];
+			}
+			semMutex.release();
+			semFull.release();
+			return segment;
+		} catch (InterruptedException e) {
+			System.out.println("Buffer get(): " + e);
+		}
 		
-		return null;  // fix 
+		return null;  // fix
+	}
+
+	//Remove segment at base
+	public RDTSegment pop() {
+		try {
+			semFull.acquire(); // only pop when there is something in buffer
+			semMutex.acquire();
+			base++;
+			semMutex.release();
+			semEmpty.release(); // Increase empty slot by 1
+			return buf[(base-1)%size];
+		} catch (InterruptedException e) {
+			System.out.println("Buffer pop(): " + e);
+		}
+		return null;
 	}
 	
 	// Put a segment in the *right* slot based on seg.seqNum
 	// used by receiver in Selective Repeat
 	public void putSeqNum (RDTSegment seg) {
 		// ***** complete
+		try {
+			semEmpty.acquire(); // wait for an empty slot
+			semMutex.acquire(); // wait for mutex
+			if (seg.seqNum >= base || seg.seqNum < base + size) {
+				buf[seg.seqNum % size] = seg;
+			}
+			semMutex.release();
+			semFull.release(); // increase #of full slots
+		} catch(InterruptedException e) {
+			System.out.println("Buffer put(): " + e);
+		}
 
 	}
 	

@@ -47,12 +47,12 @@ public class RDTSegment {
 	
 	public boolean containsAck() {
 		// complete
-		return true;
+		return flags != 0;
 	}
 	
 	public boolean containsData() {
 		// complete
-		return true;
+		return data.length != 0;
 	}
 
 	// basic 8-bit long 1-complement scheme
@@ -92,7 +92,8 @@ public class RDTSegment {
 	// called at receiver side
 	public boolean isValid() {
 		// we use 8-bitchecksum
-        return ((0xff==computeChecksum()) ? true:false) ;
+        //return ((0xff==computeChecksum()) ? true:false) ;
+		return 0xff == computeChecksum();
 	}
 	
 	// converts this seg to a series of bytes
