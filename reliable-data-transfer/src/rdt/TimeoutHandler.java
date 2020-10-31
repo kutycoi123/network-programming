@@ -28,13 +28,27 @@ class TimeoutHandler extends TimerTask {
 	@Override
 	public void run() {
 		
-		System.out.println(System.currentTimeMillis()+ ":Timeout for seg: " + seg.seqNum);
-		System.out.flush();
+		//System.out.println(System.currentTimeMillis()+ ":Timeout for seg: " + seg.seqNum);
+		//System.out.flush();
 		
 		// complete 
 		switch(RDT.protocol){
 			case RDT.GBN:
-				
+				try {
+					sndBuf.semMutex.acquire();
+					if (seg.seqNum == sndBuf.base && !sndBuf.buf[sndBuf.base % sndBuf.size].ackReceived) {
+						// Resend all segments in sndBuf
+						for (int i = 0; i < sndBuf.buf.length; ++i) {
+							Utility.udp_send(sndBuf.buf[i], socket, ip, port);
+						}
+					} else if (seg.seqNum < sndBuf.base) {
+						// This segment is already ACKed, timeout no needed.
+						this.cancel();
+					}
+					sndBuf.semMutex.release();
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 				break;
 			case RDT.SR:
 				

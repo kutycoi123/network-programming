@@ -46,7 +46,7 @@ public class TestClient {
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 2;
 	     rdt.send(data, 10);
-	     
+
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 3;
 	     rdt.send(data, 10);

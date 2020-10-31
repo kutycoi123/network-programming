@@ -52,7 +52,7 @@ public class RDTSegment {
 	
 	public boolean containsData() {
 		// complete
-		return data.length != 0;
+		return length != 0;
 	}
 
 	// basic 8-bit long 1-complement scheme

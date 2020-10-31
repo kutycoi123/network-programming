@@ -82,16 +82,20 @@ public class RDT {
 		// divide data into segments
 		// put each segment into sndBuf
 
-		int curr = 0, seqNum = 0;
-		while (curr < data.length) {
+		int curr = 0;
+		while (curr < size) {
 			int next = Math.min(curr + MSS, data.length);
 			RDTSegment segment = new RDTSegment();
 			for (int pos = curr; pos < next; ++pos) {
 				segment.data[pos-curr] = data[pos];
 			}
-			segment.seqNum = seqNum++;
+			segment.length = next - curr;
 			sndBuf.putNext(segment);
+			segment.checksum = segment.computeChecksum();
+//			segment.printHeader();
+//			segment.printData();
 			// send using udp_send()
+
 			Utility.udp_send(segment,socket,dst_ip,dst_port);
 
 			// schedule timeout for segment(s)
@@ -113,8 +117,12 @@ public class RDT {
 	public int receive (byte[] buf, int size)
 	{
 		//*****  complete
-		RDTSegment seg = rcvBuf.pop();
+		RDTSegment seg = null;
+		while (seg == null) {
+			seg = rcvBuf.getNext();
+		}
 		seg.makePayload(buf);
+		rcvBuf.popNext();
 		return seg.length + RDTSegment.HDR_SIZE;   // fix
 	}
 	
@@ -154,9 +162,10 @@ class RDTBuffer {
 	// Put a segment in the next available slot in the buffer
 	public void putNext(RDTSegment seg) {		
 		try {
-			semEmpty.acquire(); // wait for an empty slot 
+			semEmpty.acquire(); // wait for an empty slot
 			semMutex.acquire(); // wait for mutex
 				buf[next%size] = seg;
+				seg.seqNum = next;
 				next++;
 			semMutex.release();
 			semFull.release(); // increase #of full slots
@@ -186,14 +195,19 @@ class RDTBuffer {
 	}
 
 	//Remove segment at base
-	public RDTSegment pop() {
+	public RDTSegment popNext() {
 		try {
 			semFull.acquire(); // only pop when there is something in buffer
 			semMutex.acquire();
-			base++;
+			if (buf[base%size] != null && buf[base%size].seqNum == base) {
+				base++;
+				semEmpty.release(); // Increase empty slot by 1
+			} else {
+				semFull.release();
+			}
+			RDTSegment seg = buf[(base-1)%size];
 			semMutex.release();
-			semEmpty.release(); // Increase empty slot by 1
-			return buf[(base-1)%size];
+			return seg;
 		} catch (InterruptedException e) {
 			System.out.println("Buffer pop(): " + e);
 		}
@@ -205,19 +219,36 @@ class RDTBuffer {
 	public void putSeqNum (RDTSegment seg) {
 		// ***** complete
 		try {
+//			System.out.println("Put seg semEmpty = " + semEmpty.availablePermits());
 			semEmpty.acquire(); // wait for an empty slot
 			semMutex.acquire(); // wait for mutex
-			if (seg.seqNum >= base || seg.seqNum < base + size) {
+			if (seg.seqNum >= base && seg.seqNum < base + size) {
 				buf[seg.seqNum % size] = seg;
+				semFull.release(); // increase #of full slots
+			} else {
+//				System.out.println("Already received packet");
+				semEmpty.release();
 			}
 			semMutex.release();
-			semFull.release(); // increase #of full slots
-		} catch(InterruptedException e) {
+		} catch(Exception e) {
 			System.out.println("Buffer put(): " + e);
 		}
 
 	}
-	
+	// Slide the buffer window
+	public void slide() {
+		try {
+			semMutex.acquire();
+			while (base < next && buf[base % size].ackReceived) {
+				base++;
+				semEmpty.release();
+				semFull.acquire();
+			}
+			semMutex.release();
+		} catch (Exception e) {
+			System.out.println("RDTBuffer slide(): " + e);
+		}
+	}
 	// for debugging
 	public void dump() {
 		System.out.println("Dumping the receiver buffer ...");
@@ -260,28 +291,44 @@ class ReceiverThread extends Thread {
 				socket.receive(pkt);
 				RDTSegment seg = new RDTSegment();
 				makeSegment(seg, buf);
-				if (!seg.isValid()) continue;
+
+
+//				if (!seg.isValid()) {
+//					System.out.println("Seg is not valid");
+//					continue; //
+//				}
+				
+				sndBuf.semMutex.acquire();
 				if (seg.containsAck()) {
+//					System.out.println("Received packet contains ack:");
+//					seg.printHeader();
 					for (int i = 0; i < sndBuf.buf.length; ++i) {
-						if (sndBuf.buf[i].seqNum == seg.ackNum) {
+						if (sndBuf.buf[i] != null && sndBuf.buf[i].seqNum == seg.ackNum) {
 							sndBuf.buf[i].ackReceived = true;
-							// Maybe ask sndBuf to slide its buf (slide window)
 							break;
 						}
 					}
 				}
+				sndBuf.semMutex.release();
+				// Ask sndBuf to slide its buf (slide window)
+				sndBuf.slide();
 				if (seg.containsData()) {
+//					System.out.println("Received packet contains data:");
+//					seg.printHeader();
+//					seg.printData();
 					// Put seg in rcvBuf
 					rcvBuf.putSeqNum(seg);
+					// Send ack
 					RDTSegment ackSeg = new RDTSegment();
 					ackSeg.ackNum = seg.seqNum;
 					ackSeg.flags = RDTSegment.FLAGS_ACK;
+//					System.out.println("Sending ack packet");
 					Utility.udp_send(ackSeg, socket, dst_ip, dst_port);
-					// Send ack
 				}
 
-			} catch (IOException e) {
-				System.out.println("ReceiverThread run(): " + e);
+			} catch (Exception e) {
+//				System.out.println("ReceiverThread run(): " + e);
+				e.printStackTrace();
 			}
 
 		}
