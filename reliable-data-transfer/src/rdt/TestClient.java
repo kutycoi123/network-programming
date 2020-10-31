@@ -38,18 +38,19 @@ public class TestClient {
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 0;
 	     rdt.send(data, 10);
-	     
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 1;
 	     rdt.send(data, 10);
-	     
+		System.out.println("Sent second packet");
+
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 2;
 	     rdt.send(data, 10);
-
+		System.out.println("Sent third packet");
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 3;
 	     rdt.send(data, 10);
+		System.out.println("Sent fourth packet");
 
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 4;
@@ -59,7 +60,7 @@ public class TestClient {
 	     System.out.println(System.currentTimeMillis() + ":Client has sent all data " );
 	     System.out.flush();
 	     
-	     rdt.receive(buf, RDT.MSS);
+//	     rdt.receive(buf, RDT.MSS);
 	     rdt.close();
 	     System.out.println("Client is done " );
 	}

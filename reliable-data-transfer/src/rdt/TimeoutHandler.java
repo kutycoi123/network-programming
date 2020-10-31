@@ -36,7 +36,7 @@ class TimeoutHandler extends TimerTask {
 			case RDT.GBN:
 				try {
 					sndBuf.semMutex.acquire();
-					if (seg.seqNum == sndBuf.base && !sndBuf.buf[sndBuf.base % sndBuf.size].ackReceived) {
+					if (seg.seqNum == sndBuf.base &&  !sndBuf.buf[sndBuf.base % sndBuf.size].ackReceived) {
 						// Resend all segments in sndBuf
 						for (int i = 0; i < sndBuf.buf.length; ++i) {
 							Utility.udp_send(sndBuf.buf[i], socket, ip, port);
@@ -51,7 +51,19 @@ class TimeoutHandler extends TimerTask {
 				}
 				break;
 			case RDT.SR:
-				
+				try {
+					sndBuf.semMutex.acquire();
+					if (!seg.ackReceived) {
+						// Resend all segments in sndBuf
+						Utility.udp_send(seg, socket, ip, port);
+					} else if (seg.seqNum < sndBuf.base) {
+						// This segment is already ACKed, timeout no needed.
+						this.cancel();
+					}
+					sndBuf.semMutex.release();
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 				break;
 			default:
 				System.out.println("Error in TimeoutHandler:run(): unknown protocol");

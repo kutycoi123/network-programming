@@ -15,7 +15,7 @@ public class RDT {
 	public static final int MAX_BUF_SIZE = 3;  
 	public static final int GBN = 1;   // Go back N protocol
 	public static final int SR = 2;    // Selective Repeat
-	public static final int protocol = GBN;
+	public static final int protocol = SR;
 	
 	public static double lossRate = 0.0;
 	public static Random random = new Random(); 
@@ -91,9 +91,7 @@ public class RDT {
 			}
 			segment.length = next - curr;
 			sndBuf.putNext(segment);
-			segment.checksum = segment.computeChecksum();
-//			segment.printHeader();
-//			segment.printData();
+//			segment.checksum = segment.computeChecksum();
 			// send using udp_send()
 
 			Utility.udp_send(segment,socket,dst_ip,dst_port);
@@ -130,6 +128,21 @@ public class RDT {
 	public void close() {
 		// OPTIONAL: close the connection gracefully
 		// you can use TCP-style connection termination process
+		while(true) {
+			try {
+				sndBuf.semEmpty.acquire();
+				if (sndBuf.base == sndBuf.next) { // sndBuf is totally empty
+					socket.close();
+					timer.cancel();
+					break;
+				}
+				sndBuf.semEmpty.release();
+
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+
 	}
 	
 }  // end RDT class 
@@ -297,11 +310,8 @@ class ReceiverThread extends Thread {
 //					System.out.println("Seg is not valid");
 //					continue; //
 //				}
-				
 				sndBuf.semMutex.acquire();
 				if (seg.containsAck()) {
-//					System.out.println("Received packet contains ack:");
-//					seg.printHeader();
 					for (int i = 0; i < sndBuf.buf.length; ++i) {
 						if (sndBuf.buf[i] != null && sndBuf.buf[i].seqNum == seg.ackNum) {
 							sndBuf.buf[i].ackReceived = true;
@@ -313,22 +323,21 @@ class ReceiverThread extends Thread {
 				// Ask sndBuf to slide its buf (slide window)
 				sndBuf.slide();
 				if (seg.containsData()) {
-//					System.out.println("Received packet contains data:");
-//					seg.printHeader();
-//					seg.printData();
+
 					// Put seg in rcvBuf
 					rcvBuf.putSeqNum(seg);
 					// Send ack
 					RDTSegment ackSeg = new RDTSegment();
 					ackSeg.ackNum = seg.seqNum;
 					ackSeg.flags = RDTSegment.FLAGS_ACK;
-//					System.out.println("Sending ack packet");
 					Utility.udp_send(ackSeg, socket, dst_ip, dst_port);
 				}
 
 			} catch (Exception e) {
 //				System.out.println("ReceiverThread run(): " + e);
-				e.printStackTrace();
+//				e.printStackTrace();
+				System.out.println("Stopping receiver thread and close socket");
+				break;
 			}
 
 		}
