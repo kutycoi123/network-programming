@@ -91,7 +91,7 @@ public class RDT {
 			}
 			segment.length = next - curr;
 			sndBuf.putNext(segment);
-//			segment.checksum = segment.computeChecksum();
+			segment.genChecksum();
 			// send using udp_send()
 
 			Utility.udp_send(segment,socket,dst_ip,dst_port);
@@ -306,10 +306,10 @@ class ReceiverThread extends Thread {
 				makeSegment(seg, buf);
 
 
-//				if (!seg.isValid()) {
-//					System.out.println("Seg is not valid");
-//					continue; //
-//				}
+				if (!seg.isValid()) {
+					System.out.println("Segment is discarded due to corruption");
+					continue;
+				}
 				sndBuf.semMutex.acquire();
 				if (seg.containsAck()) {
 					for (int i = 0; i < sndBuf.buf.length; ++i) {
@@ -330,6 +330,7 @@ class ReceiverThread extends Thread {
 					RDTSegment ackSeg = new RDTSegment();
 					ackSeg.ackNum = seg.seqNum;
 					ackSeg.flags = RDTSegment.FLAGS_ACK;
+					ackSeg.genChecksum();
 					Utility.udp_send(ackSeg, socket, dst_ip, dst_port);
 				}
 

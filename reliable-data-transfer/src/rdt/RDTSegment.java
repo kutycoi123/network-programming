@@ -95,7 +95,13 @@ public class RDTSegment {
         //return ((0xff==computeChecksum()) ? true:false) ;
 		return 0xff == computeChecksum();
 	}
-	
+
+	// Generate checksum
+	public void genChecksum() {
+		checksum = 0;
+		checksum = 0xff & (~computeChecksum());
+	}
+
 	// converts this seg to a series of bytes
 	public void makePayload(byte[] payload) {
 		// add header 

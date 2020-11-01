@@ -54,7 +54,7 @@ class TimeoutHandler extends TimerTask {
 				try {
 					sndBuf.semMutex.acquire();
 					if (!seg.ackReceived) {
-						// Resend all segments in sndBuf
+						// Resend only this segment
 						Utility.udp_send(seg, socket, ip, port);
 					} else if (seg.seqNum < sndBuf.base) {
 						// This segment is already ACKed, timeout no needed.

@@ -41,16 +41,13 @@ public class TestClient {
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 1;
 	     rdt.send(data, 10);
-		System.out.println("Sent second packet");
 
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 2;
 	     rdt.send(data, 10);
-		System.out.println("Sent third packet");
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 3;
 	     rdt.send(data, 10);
-		System.out.println("Sent fourth packet");
 
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 4;
