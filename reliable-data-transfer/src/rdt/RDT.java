@@ -1,10 +1,10 @@
 
 package rdt;
 
-import javax.swing.text.Segment;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.Timer;
 import java.util.concurrent.*;
 
 public class RDT {
@@ -15,7 +15,7 @@ public class RDT {
 	public static final int MAX_BUF_SIZE = 3;  
 	public static final int GBN = 1;   // Go back N protocol
 	public static final int SR = 2;    // Selective Repeat
-	public static final int protocol = SR;
+	public static final int protocol = GBN;
 	
 	public static double lossRate = 0.0;
 	public static Random random = new Random(); 
@@ -117,6 +117,7 @@ public class RDT {
 		//*****  complete
 		RDTSegment seg = null;
 		while (seg == null) {
+//			System.out.println("Still getting");
 			seg = rcvBuf.getNext();
 		}
 		seg.makePayload(buf);
@@ -128,6 +129,15 @@ public class RDT {
 	public void close() {
 		// OPTIONAL: close the connection gracefully
 		// you can use TCP-style connection termination process
+		RDTSegment shutdownSeg = new RDTSegment();
+		shutdownSeg.flags = RDTSegment.FLAGS_CLIENT_SHUTDOWN;
+		sndBuf.putNext(shutdownSeg);
+		shutdownSeg.genChecksum();
+		Utility.udp_send(shutdownSeg,socket,dst_ip,dst_port);
+
+		// schedule timeout for segment(s)
+		TimeoutHandler handler = new TimeoutHandler(sndBuf,shutdownSeg,socket,dst_ip,dst_port);
+		timer.schedule(handler, 0, RTO);
 		while(true) {
 			try {
 				sndBuf.semEmpty.acquire();
@@ -142,7 +152,6 @@ public class RDT {
 				e.printStackTrace();
 			}
 		}
-
 	}
 	
 }  // end RDT class 
@@ -232,14 +241,17 @@ class RDTBuffer {
 	public void putSeqNum (RDTSegment seg) {
 		// ***** complete
 		try {
-//			System.out.println("Put seg semEmpty = " + semEmpty.availablePermits());
 			semEmpty.acquire(); // wait for an empty slot
 			semMutex.acquire(); // wait for mutex
-			if (seg.seqNum >= base && seg.seqNum < base + size) {
-				buf[seg.seqNum % size] = seg;
-				semFull.release(); // increase #of full slots
+			if (seg.seqNum >= base && seg.seqNum < base + size ){
+				if (buf[seg.seqNum % size] == null || buf[seg.seqNum % size].seqNum != seg.seqNum){
+					buf[seg.seqNum % size] = seg;
+					next = Math.max(next, seg.seqNum + 1);
+					semFull.release(); // increase #of full slots
+				} else {
+					buf[seg.seqNum % size] = seg;
+				}
 			} else {
-//				System.out.println("Already received packet");
 				semEmpty.release();
 			}
 			semMutex.release();
@@ -247,6 +259,27 @@ class RDTBuffer {
 			System.out.println("Buffer put(): " + e);
 		}
 
+	}
+	public void reset() {
+		try {
+			while (true) {
+				semEmpty.acquire();
+				semMutex.acquire();
+				if (base == next) {
+					base = next = 0;
+					buf = new RDTSegment[size];
+					for (int i = 0; i < size; i++)
+						buf[i] = null;
+					semMutex.release();
+					semEmpty.release();
+					break;
+				}
+				semMutex.release();
+				semEmpty.release();
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	// Slide the buffer window
 	public void slide() {
@@ -310,6 +343,15 @@ class ReceiverThread extends Thread {
 					System.out.println("Segment is discarded due to corruption");
 					continue;
 				}
+				if (seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
+					RDTSegment shutdownAck = new RDTSegment();
+					shutdownAck.flags = RDTSegment.FLAGS_ACK;
+					shutdownAck.ackNum = seg.seqNum;
+					shutdownAck.genChecksum();
+					Utility.udp_send(shutdownAck, socket, dst_ip, dst_port);
+					rcvBuf.reset();
+					continue;
+				}
 				sndBuf.semMutex.acquire();
 				if (seg.containsAck()) {
 					for (int i = 0; i < sndBuf.buf.length; ++i) {
@@ -325,7 +367,11 @@ class ReceiverThread extends Thread {
 				if (seg.containsData()) {
 
 					// Put seg in rcvBuf
+//					System.out.println("Received:");
+//					seg.printHeader();
+//					seg.printData();
 					rcvBuf.putSeqNum(seg);
+//					System.out.println("Finish putting in rcvBuf");
 					// Send ack
 					RDTSegment ackSeg = new RDTSegment();
 					ackSeg.ackNum = seg.seqNum;
@@ -335,8 +381,6 @@ class ReceiverThread extends Thread {
 				}
 
 			} catch (Exception e) {
-//				System.out.println("ReceiverThread run(): " + e);
-//				e.printStackTrace();
 				System.out.println("Stopping receiver thread and close socket");
 				break;
 			}
