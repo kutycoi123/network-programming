@@ -39,7 +39,9 @@ class TimeoutHandler extends TimerTask {
 					if (seg.seqNum == sndBuf.base &&  !sndBuf.buf[sndBuf.base % sndBuf.size].ackReceived) {
 						// Resend all segments in sndBuf
 						for (int i = 0; i < sndBuf.buf.length; ++i) {
-							Utility.udp_send(sndBuf.buf[i], socket, ip, port);
+							if (sndBuf.buf[i] != null) {
+								Utility.udp_send(sndBuf.buf[i], socket, ip, port);
+							}
 						}
 					} else if (seg.seqNum < sndBuf.base) {
 						// This segment is already ACKed, timeout no needed.
@@ -57,7 +59,7 @@ class TimeoutHandler extends TimerTask {
 						// Resend only this segment
 						Utility.udp_send(seg, socket, ip, port);
 					} else if (seg.seqNum < sndBuf.base) {
-						// This segment is already ACKed, timeout no needed.
+						// This segment is already  ACKed, timeout no needed.
 						this.cancel();
 					}
 					sndBuf.semMutex.release();

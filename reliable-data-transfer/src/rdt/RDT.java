@@ -117,8 +117,12 @@ public class RDT {
 		//*****  complete
 		RDTSegment seg = null;
 		while (seg == null) {
-//			System.out.println("Still getting");
 			seg = rcvBuf.getNext();
+			if (seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
+				rcvBuf.popNext();
+				rcvBuf.reset();
+				seg = null;
+			}
 		}
 		seg.makePayload(buf);
 		rcvBuf.popNext();
@@ -141,11 +145,13 @@ public class RDT {
 		while(true) {
 			try {
 				sndBuf.semEmpty.acquire();
+				sndBuf.semMutex.acquire();
 				if (sndBuf.base == sndBuf.next) { // sndBuf is totally empty
 					socket.close();
 					timer.cancel();
 					break;
 				}
+				sndBuf.semMutex.release();
 				sndBuf.semEmpty.release();
 
 			} catch (InterruptedException e) {
@@ -162,7 +168,9 @@ class RDTBuffer {
 	public int size;	
 	public int base;
 	public int next;
-	public int expectedSeqNum;
+	public int oldBase; // The base before reset
+	public boolean clientAboutToShutDown;
+	public boolean serverAboutToShutdown;
 	public Semaphore semMutex; // for mutual execlusion
 	public Semaphore semFull; // #of full slots
 	public Semaphore semEmpty; // #of Empty slots
@@ -173,7 +181,6 @@ class RDTBuffer {
 			buf[i] = null;
 		size = bufSize;
 		base = next = 0;
-		expectedSeqNum = 0;
 		semMutex = new Semaphore(1, true);
 		semFull =  new Semaphore(0, true);
 		semEmpty = new Semaphore(bufSize, true);
@@ -222,6 +229,7 @@ class RDTBuffer {
 			semFull.acquire(); // only pop when there is something in buffer
 			semMutex.acquire();
 			if (buf[base%size] != null && buf[base%size].seqNum == base) {
+				oldBase = base;
 				base++;
 				semEmpty.release(); // Increase empty slot by 1
 			} else {
@@ -266,6 +274,7 @@ class RDTBuffer {
 				semEmpty.acquire();
 				semMutex.acquire();
 				if (base == next) {
+					oldBase = base - 1;
 					base = next = 0;
 					buf = new RDTSegment[size];
 					for (int i = 0; i < size; i++)
@@ -343,41 +352,64 @@ class ReceiverThread extends Thread {
 					System.out.println("Segment is discarded due to corruption");
 					continue;
 				}
-				if (seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
-					RDTSegment shutdownAck = new RDTSegment();
-					shutdownAck.flags = RDTSegment.FLAGS_ACK;
-					shutdownAck.ackNum = seg.seqNum;
-					shutdownAck.genChecksum();
-					Utility.udp_send(shutdownAck, socket, dst_ip, dst_port);
-					rcvBuf.reset();
-					continue;
-				}
-				sndBuf.semMutex.acquire();
-				if (seg.containsAck()) {
-					for (int i = 0; i < sndBuf.buf.length; ++i) {
-						if (sndBuf.buf[i] != null && sndBuf.buf[i].seqNum == seg.ackNum) {
-							sndBuf.buf[i].ackReceived = true;
-							break;
-						}
-					}
-				}
-				sndBuf.semMutex.release();
-				// Ask sndBuf to slide its buf (slide window)
-				sndBuf.slide();
-				if (seg.containsData()) {
 
-					// Put seg in rcvBuf
-//					System.out.println("Received:");
-//					seg.printHeader();
-//					seg.printData();
-					rcvBuf.putSeqNum(seg);
-//					System.out.println("Finish putting in rcvBuf");
-					// Send ack
-					RDTSegment ackSeg = new RDTSegment();
-					ackSeg.ackNum = seg.seqNum;
-					ackSeg.flags = RDTSegment.FLAGS_ACK;
-					ackSeg.genChecksum();
-					Utility.udp_send(ackSeg, socket, dst_ip, dst_port);
+				switch (RDT.protocol) {
+					case RDT.GBN:
+						if (seg.containsAck()) {
+//							System.out.println("Received ack");
+//							seg.printHeader();
+							sndBuf.semMutex.acquire();
+							if (seg.ackNum >= sndBuf.base) {
+								for (int i = sndBuf.base; i <= seg.ackNum; ++i) {
+									sndBuf.buf[i % sndBuf.size].ackReceived = true;
+								}
+							}
+							sndBuf.semMutex.release();
+							// Ask sndBuf to slide its buf (slide window)
+							sndBuf.slide();
+						} else if (seg.containsData() || seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
+//							System.out.println("Received data or shutdown from client");
+//							seg.printHeader();
+//							seg.printData();
+							RDTSegment ackSeg = new RDTSegment();
+							ackSeg.flags = RDTSegment.FLAGS_ACK;
+							rcvBuf.semMutex.acquire();
+							if (seg.seqNum == 0) {
+								rcvBuf.oldBase = -1;
+							}
+							if (seg.seqNum == rcvBuf.base) {
+								ackSeg.ackNum = seg.seqNum;
+								rcvBuf.semMutex.release();
+								rcvBuf.putNext(seg);
+							} else {
+								ackSeg.ackNum = rcvBuf.oldBase;
+								rcvBuf.semMutex.release();
+							}
+							ackSeg.genChecksum();
+							Utility.udp_send(ackSeg, socket, dst_ip, dst_port);
+						}
+						break;
+					case RDT.SR:
+						if (seg.containsAck()) {
+							sndBuf.semMutex.acquire();
+							for (int i = 0; i < sndBuf.buf.length; ++i) {
+								if (sndBuf.buf[i] != null && sndBuf.buf[i].seqNum == seg.ackNum) {
+									sndBuf.buf[i].ackReceived = true;
+									break;
+								}
+							}
+							sndBuf.semMutex.release();
+							// Ask sndBuf to slide its buf (slide window)
+							sndBuf.slide();
+						} else if (seg.containsData()) {
+							rcvBuf.putSeqNum(seg);
+							// Send ack
+							RDTSegment ackSeg = new RDTSegment();
+							ackSeg.ackNum = seg.seqNum;
+							ackSeg.flags = RDTSegment.FLAGS_ACK;
+							ackSeg.genChecksum();
+						}
+						break;
 				}
 
 			} catch (Exception e) {
