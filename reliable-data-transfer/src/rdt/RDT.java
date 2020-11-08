@@ -15,7 +15,7 @@ public class RDT {
 	public static final int MAX_BUF_SIZE = 3;  
 	public static final int GBN = 1;   // Go back N protocol
 	public static final int SR = 2;    // Selective Repeat
-	public static final int protocol = GBN;
+	public static final int protocol = SR;
 	
 	public static double lossRate = 0.0;
 	public static Random random = new Random(); 
@@ -181,6 +181,7 @@ class RDTBuffer {
 			buf[i] = null;
 		size = bufSize;
 		base = next = 0;
+		oldBase = -1;
 		semMutex = new Semaphore(1, true);
 		semFull =  new Semaphore(0, true);
 		semEmpty = new Semaphore(bufSize, true);
@@ -374,10 +375,11 @@ class ReceiverThread extends Thread {
 							RDTSegment ackSeg = new RDTSegment();
 							ackSeg.flags = RDTSegment.FLAGS_ACK;
 							rcvBuf.semMutex.acquire();
-							if (seg.seqNum == 0) {
-								rcvBuf.oldBase = -1;
-							}
+
 							if (seg.seqNum == rcvBuf.base) {
+								if (seg.seqNum == 0) {
+									rcvBuf.oldBase = -1;
+								}
 								ackSeg.ackNum = seg.seqNum;
 								rcvBuf.semMutex.release();
 								rcvBuf.putNext(seg);
@@ -401,13 +403,14 @@ class ReceiverThread extends Thread {
 							sndBuf.semMutex.release();
 							// Ask sndBuf to slide its buf (slide window)
 							sndBuf.slide();
-						} else if (seg.containsData()) {
+						} else if (seg.containsData() || seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
 							rcvBuf.putSeqNum(seg);
 							// Send ack
 							RDTSegment ackSeg = new RDTSegment();
 							ackSeg.ackNum = seg.seqNum;
 							ackSeg.flags = RDTSegment.FLAGS_ACK;
 							ackSeg.genChecksum();
+							Utility.udp_send(ackSeg, socket, dst_ip, dst_port);
 						}
 						break;
 				}
