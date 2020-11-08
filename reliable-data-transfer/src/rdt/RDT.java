@@ -102,9 +102,6 @@ public class RDT {
 
 			curr = next;
 		}
-
-
-
 		return size;
 	}
 	
@@ -172,7 +169,7 @@ class RDTBuffer {
 	public int size;	
 	public int base;
 	public int next;
-	public int oldBase; // The base before reset
+	public int oldBase; // The previous in-order sequence number
 	public boolean clientAboutToShutDown;
 	public boolean serverAboutToShutdown;
 	public Semaphore semMutex; // for mutual execlusion
@@ -248,7 +245,15 @@ class RDTBuffer {
 		}
 		return null;
 	}
-	
+	// Check if seqNum is within buffer window [base, base + size - 1]
+	public boolean isWithinBufferWindow(int seqNum) {
+		return seqNum >= base && seqNum < base + size;
+	}
+	// Get segment with seqNum (not index)
+	public RDTSegment getSeg(int seqNum) {
+		if (!isWithinBufferWindow(seqNum)) return null;
+		return buf[seqNum % size];
+	}
 	// Put a segment in the *right* slot based on seg.seqNum
 	// used by receiver in Selective Repeat
 	public void putSeqNum (RDTSegment seg) {
@@ -256,7 +261,7 @@ class RDTBuffer {
 		try {
 			semEmpty.acquire(); // wait for an empty slot
 			semMutex.acquire(); // wait for mutex
-			if (seg.seqNum >= base && seg.seqNum < base + size ){
+			if (isWithinBufferWindow(seg.seqNum)){
 				if (buf[seg.seqNum % size] == null || buf[seg.seqNum % size].seqNum != seg.seqNum){
 					buf[seg.seqNum % size] = seg;
 					next = Math.max(next, seg.seqNum + 1);
@@ -363,9 +368,9 @@ class ReceiverThread extends Thread {
 					case RDT.GBN:
 						if (seg.containsAck()) {
 							sndBuf.semMutex.acquire();
-							if (seg.ackNum >= sndBuf.base) {
+							if (sndBuf.isWithinBufferWindow(seg.ackNum)) {
 								for (int i = sndBuf.base; i <= seg.ackNum; ++i) {
-									sndBuf.buf[i % sndBuf.size].ackReceived = true;
+									sndBuf.getSeg(i).setAckReceived(true);
 								}
 							}
 							sndBuf.semMutex.release();

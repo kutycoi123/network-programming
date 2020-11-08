@@ -59,6 +59,9 @@ public class RDTSegment {
 		return length != 0;
 	}
 
+	public void setAckReceived(boolean received) {
+		ackReceived = received;
+	}
 	// basic 8-bit long 1-complement scheme
 	public int computeChecksum() {
 		int csum = 0;
