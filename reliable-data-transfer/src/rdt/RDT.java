@@ -83,8 +83,9 @@ public class RDT {
 		// put each segment into sndBuf
 
 		int curr = 0;
+		int maximumDataLength = MSS - RDTSegment.HDR_SIZE;
 		while (curr < size) {
-			int next = Math.min(curr + MSS, data.length);
+			int next = Math.min(curr + maximumDataLength, data.length);
 			RDTSegment segment = new RDTSegment();
 			for (int pos = curr; pos < next; ++pos) {
 				segment.data[pos-curr] = data[pos];
@@ -93,7 +94,6 @@ public class RDT {
 			sndBuf.putNext(segment);
 			segment.genChecksum();
 			// send using udp_send()
-
 			Utility.udp_send(segment,socket,dst_ip,dst_port);
 
 			// schedule timeout for segment(s)

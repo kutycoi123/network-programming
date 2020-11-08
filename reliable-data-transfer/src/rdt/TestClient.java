@@ -34,10 +34,10 @@ public class TestClient {
 	     RDT.setLossRate(0.4);
 	  
 	     byte[] buf = new byte[RDT.MSS];
-	     byte[] data = new byte[10];
-	     for (int i=0; i<10; i++)
+	     byte[] data = new byte[150];
+	     for (int i=0; i<150; i++)
 	    	 data[i] = 0;
-	     rdt.send(data, 10);
+	     rdt.send(data, 150);
 	     for (int i=0; i<10; i++)
 	    	 data[i] = 1;
 	     rdt.send(data, 10);
