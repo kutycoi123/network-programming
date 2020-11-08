@@ -15,7 +15,7 @@ public class RDT {
 	public static final int MAX_BUF_SIZE = 3;  
 	public static final int GBN = 1;   // Go back N protocol
 	public static final int SR = 2;    // Selective Repeat
-	public static final int protocol = SR;
+	public static final int protocol = GBN;
 	
 	public static double lossRate = 0.0;
 	public static Random random = new Random(); 
@@ -118,6 +118,7 @@ public class RDT {
 		RDTSegment seg = null;
 		while (seg == null) {
 			seg = rcvBuf.getNext();
+			// Received client shutdown segment => reset the buffer and ready for new client connection
 			if (seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
 				rcvBuf.popNext();
 				rcvBuf.reset();
@@ -133,21 +134,23 @@ public class RDT {
 	public void close() {
 		// OPTIONAL: close the connection gracefully
 		// you can use TCP-style connection termination process
+		// Send a client shutdown segment and put this segment into sndBuf
 		RDTSegment shutdownSeg = new RDTSegment();
 		shutdownSeg.flags = RDTSegment.FLAGS_CLIENT_SHUTDOWN;
 		sndBuf.putNext(shutdownSeg);
 		shutdownSeg.genChecksum();
 		Utility.udp_send(shutdownSeg,socket,dst_ip,dst_port);
 
-		// schedule timeout for segment(s)
+		// schedule timeout for shutdown segment
 		TimeoutHandler handler = new TimeoutHandler(sndBuf,shutdownSeg,socket,dst_ip,dst_port);
 		timer.schedule(handler, 0, RTO);
 		while(true) {
 			try {
 				sndBuf.semEmpty.acquire();
 				sndBuf.semMutex.acquire();
-				if (sndBuf.base == sndBuf.next) { // sndBuf is totally empty
-					socket.close();
+				if (sndBuf.base == sndBuf.next) { // sndBuf is totally empty, meaning server has received all segments
+					// Time to close socket and timer
+					socket.close(); // This one will cause receiver thread throw exception, therefore, terminated
 					timer.cancel();
 					break;
 				}
@@ -221,7 +224,7 @@ class RDTBuffer {
 			System.out.println("Buffer get(): " + e);
 		}
 		
-		return null;  // fix
+		return null;
 	}
 
 	//Remove segment at base
@@ -240,7 +243,7 @@ class RDTBuffer {
 			semMutex.release();
 			return seg;
 		} catch (InterruptedException e) {
-			System.out.println("Buffer pop(): " + e);
+			e.printStackTrace();
 		}
 		return null;
 	}
@@ -265,10 +268,11 @@ class RDTBuffer {
 			}
 			semMutex.release();
 		} catch(Exception e) {
-			System.out.println("Buffer put(): " + e);
+			e.printStackTrace();
 		}
 
 	}
+	// Reset the buffer
 	public void reset() {
 		try {
 			while (true) {
@@ -302,7 +306,7 @@ class RDTBuffer {
 			}
 			semMutex.release();
 		} catch (Exception e) {
-			System.out.println("RDTBuffer slide(): " + e);
+			e.printStackTrace();
 		}
 	}
 	// for debugging
@@ -348,7 +352,7 @@ class ReceiverThread extends Thread {
 				RDTSegment seg = new RDTSegment();
 				makeSegment(seg, buf);
 
-
+				// Corrupted segment
 				if (!seg.isValid()) {
 					System.out.println("Segment is discarded due to corruption");
 					continue;
@@ -357,8 +361,6 @@ class ReceiverThread extends Thread {
 				switch (RDT.protocol) {
 					case RDT.GBN:
 						if (seg.containsAck()) {
-//							System.out.println("Received ack");
-//							seg.printHeader();
 							sndBuf.semMutex.acquire();
 							if (seg.ackNum >= sndBuf.base) {
 								for (int i = sndBuf.base; i <= seg.ackNum; ++i) {
@@ -368,23 +370,20 @@ class ReceiverThread extends Thread {
 							sndBuf.semMutex.release();
 							// Ask sndBuf to slide its buf (slide window)
 							sndBuf.slide();
-						} else if (seg.containsData() || seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
-//							System.out.println("Received data or shutdown from client");
-//							seg.printHeader();
-//							seg.printData();
+						} else if (seg.containsData() || seg.containsClientShutdownFlag()) {
 							RDTSegment ackSeg = new RDTSegment();
 							ackSeg.flags = RDTSegment.FLAGS_ACK;
 							rcvBuf.semMutex.acquire();
 
 							if (seg.seqNum == rcvBuf.base) {
-								if (seg.seqNum == 0) {
+								if (seg.seqNum == 0) { // New client, reset oldBase
 									rcvBuf.oldBase = -1;
 								}
 								ackSeg.ackNum = seg.seqNum;
 								rcvBuf.semMutex.release();
 								rcvBuf.putNext(seg);
 							} else {
-								ackSeg.ackNum = rcvBuf.oldBase;
+								ackSeg.ackNum = rcvBuf.oldBase; // The latest in-order seqNum
 								rcvBuf.semMutex.release();
 							}
 							ackSeg.genChecksum();
@@ -403,7 +402,7 @@ class ReceiverThread extends Thread {
 							sndBuf.semMutex.release();
 							// Ask sndBuf to slide its buf (slide window)
 							sndBuf.slide();
-						} else if (seg.containsData() || seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
+						} else if (seg.containsData() || seg.containsClientShutdownFlag()) {
 							rcvBuf.putSeqNum(seg);
 							// Send ack
 							RDTSegment ackSeg = new RDTSegment();

@@ -36,7 +36,7 @@ class TimeoutHandler extends TimerTask {
 			case RDT.GBN:
 				try {
 					sndBuf.semMutex.acquire();
-					if (seg.seqNum == sndBuf.base &&  !sndBuf.buf[sndBuf.base % sndBuf.size].ackReceived) {
+					if (seg.seqNum == sndBuf.base && !seg.ackReceived) {
 						// Resend all segments in sndBuf
 						for (int i = 0; i < sndBuf.buf.length; ++i) {
 							if (sndBuf.buf[i] != null) {

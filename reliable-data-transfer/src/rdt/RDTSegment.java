@@ -34,7 +34,6 @@ public class RDTSegment {
 	public static final int HDR_SIZE = 24; 
 	public static final int FLAGS_ACK = 1;
 	public static final int FLAGS_CLIENT_SHUTDOWN = 2;
-	public static final int FLAGS_SERVER_RESET = -1;
 
 	RDTSegment() {
 		data = new byte[RDT.MSS];
@@ -46,7 +45,10 @@ public class RDTSegment {
 		rcvWin = 0;
 		ackReceived = false;
 	}
-	
+
+	public boolean containsClientShutdownFlag() {
+		return flags == FLAGS_CLIENT_SHUTDOWN;
+	}
 	public boolean containsAck() {
 		// complete
 		return flags == FLAGS_ACK;
