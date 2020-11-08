@@ -28,8 +28,8 @@ class TimeoutHandler extends TimerTask {
 	@Override
 	public void run() {
 		
-		//System.out.println(System.currentTimeMillis()+ ":Timeout for seg: " + seg.seqNum);
-		//System.out.flush();
+		System.out.println(System.currentTimeMillis()+ ":Timeout for seg: " + seg.seqNum);
+		System.out.flush();
 		
 		// complete 
 		switch(RDT.protocol){
