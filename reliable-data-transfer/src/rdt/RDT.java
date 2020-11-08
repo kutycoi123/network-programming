@@ -85,7 +85,7 @@ public class RDT {
 		int curr = 0;
 		int maximumDataLength = MSS - RDTSegment.HDR_SIZE;
 		while (curr < size) {
-			int next = Math.min(curr + maximumDataLength, data.length);
+			int next = Math.min(curr + maximumDataLength, size);
 			RDTSegment segment = new RDTSegment();
 			for (int pos = curr; pos < next; ++pos) {
 				segment.data[pos-curr] = data[pos];
@@ -120,6 +120,7 @@ public class RDT {
 			seg = rcvBuf.getNext();
 			// Received client shutdown segment => reset the buffer and ready for new client connection
 			if (seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
+				System.out.println("Client has already closed. Server is about to reset");
 				rcvBuf.popNext();
 				rcvBuf.reset();
 				seg = null;
