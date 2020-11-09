@@ -1,6 +1,6 @@
 /**
- * @author mhefeeda
- *
+ * Name: TRUNGLAM NGUYEN
+ * Email: tln3@sfu.ca
  */
 
 package rdt;
