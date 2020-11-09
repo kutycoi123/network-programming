@@ -137,6 +137,12 @@ public class RDT {
 		shutdownSeg.flags = RDTSegment.FLAGS_CLIENT_SHUTDOWN;
 		sndBuf.putNext(shutdownSeg);
 		shutdownSeg.genChecksum();
+		// Wait a bit for all data in sndBuf to be successfully received (acknowledged)
+		try {
+			Thread.sleep((sndBuf.next - sndBuf.base) * RTO);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 		Utility.udp_send(shutdownSeg,socket,dst_ip,dst_port);
 
 		// schedule timeout for shutdown segment

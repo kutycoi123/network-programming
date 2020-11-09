@@ -14,15 +14,14 @@ Email: tln3@sfu.ca
    + One of the main challenge part for this assignment is to implement a proper close process for
    both client and server. My implementation for close method is described below:
    + Phase 1: close() method is invoked. 
-      Step 1: Client sends a segment and set the flag to be 2 (RDTSegment.FLAGS_CLIENT_SHUTDOWN).
-      Step 2: Client put this segment into send buffer(sndBuf) and start a timer for this segment.
-              This segment is treated like normal segment but sets flag to be 2
+      Step 1: Client create a segment with flag as 2 (RDT.FLAGS_CLIENT_SHUTDOWN),
+              then put this segment into send buffer(sndBuf) and start a timer for this segment. This segment is treated like normal segment.
+      Step 2: Client waits for a short time(number of segments * RTT) before sending a shutdown segment.
       Step 3: Server receives the client shutdown segment, put this segment into receiver buffer (rcvBuf)
       Step 4: Server then sends acknowledgement to client
-   + Phase 2: Client finishes sending all the data, ready to close the connection
+   + Phase 2: Client finishes sending all the data and server have received all data
       Step 1: Once all the segments in send buffer are acknowledged (including the shutdown segment), 
-              client will be ready to close the connection.
-              Client close the socket, force the main thread and receiver thread to terminate
+              client closes the socket, forces the main thread and receiver thread to terminate
       Step 2: After receiving all the sent segments, server will be ready to reset the receiver buffer.
               Server reset the receriver buffer and ready for new client connection.
    + Above implementation allows client to shutdown properly and server to reset and ready for new connection, without having to
