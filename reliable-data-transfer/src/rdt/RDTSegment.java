@@ -121,7 +121,12 @@ public class RDTSegment {
 		for (int i=0; i<length; i++)
 			payload[i+HDR_SIZE] = data[i];
 	}
-	
+
+	public int getSegData(byte[] buf, int bufSize) {
+		for (int i=0; i<length && i < bufSize; i++)
+			buf[i] = data[i];
+		return Math.min(length, bufSize);
+	}
 	public void printHeader() {
 		System.out.println("SeqNum: " + seqNum);
 		System.out.println("ackNum: " + ackNum);

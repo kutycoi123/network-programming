@@ -12,7 +12,7 @@ import java.util.concurrent.*;
 
 public class RDT {
 
-	public static final int MSS = 100; // Max segement size in bytes
+	public static final int MSS = 100; // Max segement data in bytes (not including header)
 	public static final int RTO = 500; // Retransmission Timeout in msec
 	public static final int ERROR = -1;
 	public static final int MAX_BUF_SIZE = 3;  
@@ -86,9 +86,8 @@ public class RDT {
 		// put each segment into sndBuf
 
 		int curr = 0;
-		int maximumDataLength = MSS - RDTSegment.HDR_SIZE;
 		while (curr < size) {
-			int next = Math.min(curr + maximumDataLength, size);
+			int next = Math.min(curr + MSS, size);
 			RDTSegment segment = new RDTSegment();
 			for (int pos = curr; pos < next; ++pos) {
 				segment.data[pos-curr] = data[pos];
@@ -126,9 +125,10 @@ public class RDT {
 				seg = null;
 			}
 		}
-		seg.makePayload(buf);
+//		seg.makePayload(buf);
 		rcvBuf.popNext();
-		return seg.length + RDTSegment.HDR_SIZE;   // fix
+		int dataSize = seg.getSegData(buf, size);
+		return dataSize;
 	}
 	
 	// called by app
@@ -360,7 +360,7 @@ class ReceiverThread extends Thread {
 		//                             stuff (e.g, send ACK)
 		//
 		while(true) {
-			byte[] buf = new byte[RDT.MSS];
+			byte[] buf = new byte[RDT.MSS + RDTSegment.HDR_SIZE];
 			DatagramPacket pkt = new DatagramPacket(buf, buf.length);
 			try {
 				socket.receive(pkt);
