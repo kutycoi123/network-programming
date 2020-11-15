@@ -118,14 +118,14 @@ public class RDT {
 		while (seg == null) {
 			seg = rcvBuf.getNext();
 			// Received client shutdown segment => reset the buffer and ready for new client connection
-			if (seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
+			if (seg != null && seg.flags == RDTSegment.FLAGS_CLIENT_SHUTDOWN) {
 				System.out.println("Client has already closed. Server is about to reset");
 				rcvBuf.popNext();
 				rcvBuf.reset();
 				seg = null;
 			}
 		}
-//		seg.makePayload(buf);
+
 		rcvBuf.popNext();
 		int dataSize = seg.getSegData(buf, size);
 		return dataSize;
@@ -179,8 +179,6 @@ class RDTBuffer {
 	public int base;
 	public int next;
 	public int oldBase; // The previous in-order sequence number
-	public boolean clientAboutToShutDown;
-	public boolean serverAboutToShutdown;
 	public Semaphore semMutex; // for mutual execlusion
 	public Semaphore semFull; // #of full slots
 	public Semaphore semEmpty; // #of Empty slots
@@ -254,15 +252,18 @@ class RDTBuffer {
 		}
 		return null;
 	}
+
 	// Check if seqNum is within buffer window [base, base + size - 1]
 	public boolean isWithinBufferWindow(int seqNum) {
 		return seqNum >= base && seqNum < base + size;
 	}
+
 	// Get segment with seqNum (not index)
 	public RDTSegment getSeg(int seqNum) {
 		if (!isWithinBufferWindow(seqNum)) return null;
 		return buf[seqNum % size];
 	}
+
 	// Put a segment in the *right* slot based on seg.seqNum
 	// used by receiver in Selective Repeat
 	public void putSeqNum (RDTSegment seg) {
@@ -287,13 +288,13 @@ class RDTBuffer {
 		}
 
 	}
-	// Reset the buffer
+	// Reset buffer
 	public void reset() {
 		try {
 			while (true) {
 				semEmpty.acquire();
 				semMutex.acquire();
-				if (base == next) {
+				if (base == next) { //bufer is empty
 					oldBase = base - 1;
 					base = next = 0;
 					buf = new RDTSegment[size];
@@ -408,6 +409,7 @@ class ReceiverThread extends Thread {
 					case RDT.SR:
 						if (seg.containsAck()) {
 							sndBuf.semMutex.acquire();
+							// Segment has been received, set ackReceived true
 							for (int i = 0; i < sndBuf.buf.length; ++i) {
 								if (sndBuf.buf[i] != null && sndBuf.buf[i].seqNum == seg.ackNum) {
 									sndBuf.buf[i].ackReceived = true;
